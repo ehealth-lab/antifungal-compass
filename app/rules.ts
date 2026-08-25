@@ -54,14 +54,14 @@ export type RiskInputs = {
 
 export type RiskResult = {
   level: RiskLevel;
-  riskBand: "IFD��ظ�Σ" | "��Σ" | "��Σ" | "�����м��" | "δ���и�Σ����";
+  riskBand: "IFD相关高危" | "高危" | "中危" | "需密切监测" | "未命中高危条件";
   title: string;
   detail: string;
   trace: string[];
 };
 
-export type DrugName = "��ɳ����" | "��������" | "�׿��Ҿ�" | "������" | "��ɳ����" | "��������" | "�����Ҿ�" | "֬��������ù��B";
-export type DrugCandidate = { name: DrugName; rank: "��ѡ" | "�Ƽ�" | "�ɿ���" | "����ʹ��" | "���Ƽ�"; note?: string; offLabel?: boolean };
+export type DrugName = "泊沙康唑" | "伏立康唑" | "米卡芬净" | "氟康唑" | "艾沙康唑" | "伊曲康唑" | "卡泊芬净" | "脂质体两性霉素B";
+export type DrugCandidate = { name: DrugName; rank: "首选" | "推荐" | "可考虑" | "条件使用" | "不推荐"; note?: string; offLabel?: boolean };
 export type RenalStatus = "" | "normal" | "impaired" | "dialysis";
 export type HepaticStatus = "" | "normal" | "abnormal" | "child-ab" | "child-c";
 export type MedicationKey =
@@ -123,76 +123,81 @@ export function deriveRiskInputs(questionnaire: QuestionnaireInputs, ageMonths: 
 }
 
 export function deriveDiseaseRiskLabel(questionnaire: QuestionnaireInputs, ageMonths: number) {
-  if (!questionnaire.diagnosis) return { label: "����д", detail: "��ѡ������Ҫ������ϺͶ�Ӧ������Ϣ��" };
+  if (!questionnaire.diagnosis) return { label: "待填写", detail: "请选择最主要疾病诊断和对应风险信息。" };
   if (questionnaire.diagnosis === "ALL") {
     const reasons: string[] = [];
-    if (questionnaire.diseaseRisk === "high") reasons.push("��������ѡ���Σ");
+    if (questionnaire.diseaseRisk === "high") reasons.push("疾病风险选择高危");
     if (questionnaire.allSubtype === "T-ALL") reasons.push("T-ALL");
-    if (questionnaire.phStatus === "positive") reasons.push("Ph����");
-    if (Number.isFinite(ageMonths) && ageMonths < 12) reasons.push("����С��1��");
-    if (reasons.length) return { label: "��Σ", detail: reasons.join("��") };
+    if (questionnaire.phStatus === "positive") reasons.push("Ph阳性");
+    if (Number.isFinite(ageMonths) && ageMonths < 12) reasons.push("年龄小于1岁");
+    if (reasons.length) return { label: "高危", detail: reasons.join("；") };
   }
   if (["ALL", "AML", "MDS"].includes(questionnaire.diagnosis)) {
-    const labels: Record<DiseaseRisk, string> = { "": "����д", low: "��Σ", intermediate: "��Σ", high: "��Σ" };
-    return { label: labels[questionnaire.diseaseRisk], detail: "����������շּ���ʾ��" };
+    const labels: Record<DiseaseRisk, string> = { "": "待填写", low: "低危", intermediate: "中危", high: "高危" };
+    return { label: labels[questionnaire.diseaseRisk], detail: "按所填疾病风险分级显示。" };
   }
   if (questionnaire.diagnosis === "lymphoma") {
-    if (!questionnaire.lymphomaHighRisk) return { label: "����д", detail: "����д�ܰ������ڼ��Ƿ��Σ��" };
-    return { label: questionnaire.lymphomaHighRisk === "yes" ? "��Σ" : "�Ǹ�Σ", detail: questionnaire.lymphomaStage ? `�������ڣ�${questionnaire.lymphomaStage}��` : "����������δ��д��" };
+    if (!questionnaire.lymphomaHighRisk) return { label: "待填写", detail: "请填写淋巴瘤分期及是否高危。" };
+    return { label: questionnaire.lymphomaHighRisk === "yes" ? "高危" : "非高危", detail: questionnaire.lymphomaStage ? `疾病分期：${questionnaire.lymphomaStage}期` : "疾病分期尚未填写。" };
   }
   if (questionnaire.diagnosis === "CML") {
-    const labels = { "": "����д", chronic: "������", accelerated: "������", blast: "������", other: "����/����" };
-    return { label: labels[questionnaire.cmlPhase], detail: "������CML�����׶���ʾ��" };
+    const labels = { "": "待填写", chronic: "慢性期", accelerated: "加速期", blast: "急变期", other: "其他/不详" };
+    return { label: labels[questionnaire.cmlPhase], detail: "按所填CML疾病阶段显示。" };
   }
-  return { label: "δ�ּ�", detail: "��ǰ���û�����ü������շּ�����" };
+  return { label: "未分级", detail: "当前诊断没有配置疾病风险分级规则。" };
 }
 
 export function evaluatePrevention(input: RiskInputs): RiskResult {
   const ifdSignals: string[] = [];
-  if (input.currentIfd) ifdSignals.push("��ǰȷ�������IFD");
-  if (input.imagingOrMarkerPositive) ifdSignals.push("Ӱ��ѧ�ı��G/GM��������");
-  if (input.previousIfd) ifdSignals.push("����IFDʷ");
-  if (ifdSignals.length > 0) return { level: "secondary", riskBand: "IFD��ظ�Σ", title: "�Ƽ����ж���Ԥ��", detail: "������������ṩ��ȷ�ϵ�ԭʼ�����������ǰ��Ի����Ƹ�Ⱦ�������ٴ��Ŷ������ж�����·����", trace: ifdSignals };
+  if (input.currentIfd) ifdSignals.push("当前确诊或疑似IFD");
+  if (input.imagingOrMarkerPositive) ifdSignals.push("影像学改变或G/GM试验阳性");
+  if (input.previousIfd) ifdSignals.push("既往IFD史");
+  if (ifdSignals.length > 0) return { level: "secondary", riskBand: "IFD相关高危", title: "推荐进行二级预防", detail: "本结果按资料提供者确认的原始流程输出；当前活动性或疑似感染仍需由临床团队另行判断诊疗路径。", trace: ifdSignals };
   if (input.hsct) {
-    if (input.preEngraftment) return { level: "recommended", riskBand: "��Σ", title: "�Ƽ����п����Ԥ��", detail: "Ԥ������ֲǰԤ����ͬʱ��ʼ��ԭʼ���̽������ٳ�������ֲ��3���¡�", trace: ["���ڽ�����Ѫ��ϸ����ֲ", "����ֲ��ǰ�׶�"] };
-    if (input.alloHsctWithGvhdOrTherapy) return { level: "recommended", riskBand: "��Σ", title: "�Ƽ����п����Ԥ��", detail: "�����HSCT���ϲ�GVHD�����ڽ�������/�������ơ�", trace: ["�������Ѫ��ϸ����ֲ", "�ϲ�GVHD������/��������"] };
+    if (input.preEngraftment) return { level: "recommended", riskBand: "高危", title: "推荐进行抗真菌预防", detail: "预防与移植前预处理同时开始，原始流程建议至少持续至移植后3个月。", trace: ["正在进行造血干细胞移植", "处于植入前阶段"] };
+    if (input.alloHsctWithGvhdOrTherapy) return { level: "recommended", riskBand: "高危", title: "推荐进行抗真菌预防", detail: "异基因HSCT并合并GVHD或正在接受免疫/靶向治疗。", trace: ["异基因造血干细胞移植", "合并GVHD或免疫/靶向治疗"] };
     return input.generalRiskFactor
-      ? { level: "consider", riskBand: "��Σ", title: "�ɿ��ǽ���Ԥ��", detail: "���������г�������һ���Σ�����ء�", trace: ["��Ѫ��ϸ����ֲ", "�ϲ�����Σ������"] }
-      : { level: "not-routine", riskBand: "δ���и�Σ����", title: "���Ƽ�����Ԥ��", detail: "δ����ԭʼ�����е���ֲ���Σ������", trace: ["��Ѫ��ϸ����ֲ", "δ�ϲ����и�Σ����"] };
+      ? { level: "consider", riskBand: "中危", title: "可考虑进行预防", detail: "存在资料列出的至少一项附加危险因素。", trace: ["造血干细胞移植", "合并附加危险因素"] }
+      : { level: "not-routine", riskBand: "未命中高危条件", title: "不推荐常规预防", detail: "未命中原始流程中的移植后高危条件。", trace: ["造血干细胞移植", "未合并所列高危条件"] };
   }
   if (input.systemicImmuneTherapy || input.atg) {
-    if (input.atg) return { level: "recommended", riskBand: "��Σ", title: "�Ƽ����п����Ԥ��", detail: "���ڽ���ATG��", trace: ["ȫ���������ƻ��ܰ�ϸ����������", "����ATG"] };
-    return input.generalRiskFactor
-      ? { level: "consider", riskBand: "��Σ", title: "�ɿ��ǽ���Ԥ��", detail: "��������/�������Ʋ��ϲ�����Σ�����ء�", trace: ["���߻��������", "�ϲ�����Σ������"] }
-      : { level: "monitor", riskBand: "�����м��", title: "�������м��", detail: "��������/�������ƣ���δ����ԭʼ�����еĸ���Σ�����ء�", trace: ["���߻��������", "δ�ϲ����и���Σ������"] };
+    return {
+      level: "recommended",
+      riskBand: "高危",
+      title: "推荐进行抗真菌预防",
+      detail: input.atg ? "正在接受ATG。" : "正在接受全身免疫治疗或淋巴细胞靶向治疗。",
+      trace: input.atg
+        ? ["全身免疫治疗或淋巴细胞靶向治疗", "接受ATG"]
+        : ["全身免疫治疗或淋巴细胞靶向治疗"],
+    };
   }
   if (input.leukemia) {
     if (input.aml) {
-      if (input.amlHighRisk) return { level: "recommended", riskBand: "��Σ", title: "�Ƽ����п����Ԥ��", detail: "Ԥ���踲��Ԥ�ڵ�����������ϸ�������ڡ�", trace: ["��Ѫ��", "AML", "��Σ"] };
+      if (input.amlHighRisk) return { level: "recommended", riskBand: "高危", title: "推荐进行抗真菌预防", detail: "预防需覆盖预期的严重中性粒细胞减少期。", trace: ["白血病", "AML", "高危"] };
       return input.generalRiskFactor
-        ? { level: "recommended", riskBand: "��Σ", title: "�Ƽ����п����Ԥ��", detail: "AML���ϲ������г��ĸ���Σ�����ء�", trace: ["��Ѫ��", "AML", "�ϲ�����Σ������"] }
-        : { level: "consider", riskBand: "��Σ", title: "���廯������ɿ���Ԥ��", detail: "���ϻ���ǿ�ȡ��Ĥ�׷��յ����ؽ��и��廯������", trace: ["��Ѫ��", "AML", "δ������ȷ��Σ����"] };
+        ? { level: "recommended", riskBand: "高危", title: "推荐进行抗真菌预防", detail: "AML并合并资料列出的附加危险因素。", trace: ["白血病", "AML", "合并附加危险因素"] }
+        : { level: "consider", riskBand: "中危", title: "个体化评估后可考虑预防", detail: "需结合化疗强度、黏膜炎风险等因素进行个体化评估。", trace: ["白血病", "AML", "未命中明确高危条件"] };
     }
-    if (input.highRiskAll) return { level: "recommended", riskBand: "��Σ", title: "�Ƽ����п����Ԥ��", detail: input.consolidationOrIntensification ? "��ǰ���ڹ���/ǿ�����ƽ׶Σ�ΪԤ���ص㸲���ڡ�" : "���и�Σ/Tϸ��/Ӥ��/�ѳ�Ⱦɫ������ALL������", trace: ["��Ѫ��", "��Σ/Tϸ��/Ӥ��/�ѳ�Ⱦɫ������ALL", input.consolidationOrIntensification ? "����/ǿ������" : "�������ƽ׶�"] };
-    if (input.inductionRefractoryRelapse) return { level: "recommended", riskBand: "��Σ", title: "�Ƽ����п����Ԥ��", detail: "Ԥ�����ϼ�������ʷ����������״̬�ۺ�������", trace: ["��Ѫ��", "�յ�/����/�������ƽ׶�"] };
+    if (input.highRiskAll) return { level: "recommended", riskBand: "高危", title: "推荐进行抗真菌预防", detail: input.consolidationOrIntensification ? "当前处于巩固/强化化疗阶段，为预防重点覆盖期。" : "命中高危/T细胞/婴儿/费城染色体阳性ALL条件。", trace: ["白血病", "高危/T细胞/婴儿/费城染色体阳性ALL", input.consolidationOrIntensification ? "巩固/强化化疗" : "其他治疗阶段"] };
+    if (input.inductionRefractoryRelapse) return { level: "recommended", riskBand: "高危", title: "推荐进行抗真菌预防", detail: "预防需结合既往治疗史、免疫抑制状态综合评估。", trace: ["白血病", "诱导/难治/复发治疗阶段"] };
     return input.generalRiskFactor
-      ? { level: "consider", riskBand: "��Σ", title: "�ɿ��ǽ���Ԥ��", detail: "��Ѫ�����ϲ������г��ĸ���Σ�����ء�", trace: ["��Ѫ��", "�ϲ�����Σ������"] }
-      : { level: "not-routine", riskBand: "δ���и�Σ����", title: "���Ƽ�����Ԥ��", detail: "δ����ԭʼ�����е���ȷԤ��������", trace: ["��Ѫ��", "δ������ȷ��Σ����"] };
+      ? { level: "consider", riskBand: "中危", title: "可考虑进行预防", detail: "白血病并合并资料列出的附加危险因素。", trace: ["白血病", "合并附加危险因素"] }
+      : { level: "not-routine", riskBand: "未命中高危条件", title: "不推荐常规预防", detail: "未命中原始流程中的明确预防条件。", trace: ["白血病", "未命中明确高危条件"] };
   }
-  if (input.hodgkinLymphoma && input.generalRiskFactor) return { level: "consider", riskBand: "��Σ", title: "�ɿ��ǽ���Ԥ��", detail: "������ܰ������ϲ������г��ĸ���Σ�����ء�", trace: ["������ܰ���", "�ϲ�����Σ������"] };
-  return { level: "not-routine", riskBand: "δ���и�Σ����", title: "���Ƽ�����Ԥ��", detail: "δ����ԭʼ�����е���ȷԤ��������", trace: ["δ���а�Ѫ������ֲ���������Ƶ���ȷ·��"] };
+  if (input.hodgkinLymphoma && input.generalRiskFactor) return { level: "consider", riskBand: "中危", title: "可考虑进行预防", detail: "霍奇金淋巴瘤并合并资料列出的附加危险因素。", trace: ["霍奇金淋巴瘤", "合并附加危险因素"] };
+  return { level: "not-routine", riskBand: "未命中高危条件", title: "不推荐常规预防", detail: "未命中原始流程中的明确预防条件。", trace: ["未命中白血病、移植、免疫治疗等明确路径"] };
 }
 
 export function selectDrugCandidates(options: { preventionLevel: RiskLevel; patientAgeMonths: number; imagingOrMarkerPositive: boolean; amlInduction: boolean; hsct: boolean; prolongedNeutropenia: boolean; qtcProlonged: boolean; azoleContraindicatedOrPoorAbsorption: boolean }): DrugCandidate[] {
   if (options.preventionLevel === "not-routine" || options.preventionLevel === "monitor") return [];
-  if (options.imagingOrMarkerPositive) return [{ name: "��������", rank: "��ѡ", note: "��ԭʼҩ��ѡ���������" }];
+  if (options.imagingOrMarkerPositive) return [{ name: "伏立康唑", rank: "首选", note: "按原始药物选择流程输出" }];
   const drugs: DrugCandidate[] = [];
-  if (options.amlInduction) drugs.push({ name: "��ɳ����", rank: "�Ƽ�" });
+  if (options.amlInduction) drugs.push({ name: "泊沙康唑", rank: "推荐" });
   else if (options.hsct || options.prolongedNeutropenia) {
-    drugs.push({ name: "��ɳ����", rank: "�Ƽ�" }, { name: "��������", rank: "�Ƽ�" });
-    if (options.azoleContraindicatedOrPoorAbsorption) drugs.push({ name: "�׿��Ҿ�", rank: "����ʹ��", note: "������ɻ�θ�������ղ���" });
-  } else drugs.push({ name: "������", rank: "�ɿ���" });
-  if (options.qtcProlonged || options.prolongedNeutropenia) drugs.push({ name: "��ɳ����", rank: "�ɿ���", note: options.qtcProlonged ? "QTc�����ӳ�" : "����������ϸ������", offLabel: Number.isFinite(options.patientAgeMonths) && options.patientAgeMonths < 18 * 12 });
+    drugs.push({ name: "泊沙康唑", rank: "推荐" }, { name: "伏立康唑", rank: "推荐" });
+    if (options.azoleContraindicatedOrPoorAbsorption) drugs.push({ name: "米卡芬净", rank: "条件使用", note: "唑类禁忌或胃肠道吸收不良" });
+  } else drugs.push({ name: "氟康唑", rank: "可考虑" });
+  if (options.qtcProlonged || options.prolongedNeutropenia) drugs.push({ name: "艾沙康唑", rank: "可考虑", note: options.qtcProlonged ? "QTc间期延长" : "长期中性粒细胞减少", offLabel: Number.isFinite(options.patientAgeMonths) && options.patientAgeMonths < 18 * 12 });
   const seen = new Set<string>();
   return drugs.filter((drug) => seen.has(drug.name) ? false : (seen.add(drug.name), true));
 }
@@ -203,12 +208,12 @@ export function calculateMicafungin(weightKg: number) { return weightKg > 0 ? { 
 export function calculatePosaconazole(formulation: "tablet" | "suspension", ageMonths: number, weightKg: number) {
   if (!Number.isFinite(ageMonths) || ageMonths < 0) return null;
   if (formulation === "tablet") return ageMonths >= 13 * 12
-    ? { available: true as const, loading: "����ÿ��300 mg��ÿ��2��", maintenance: "�˺�ÿ��300 mg��ÿ��1��" }
-    : { available: false as const, reason: "13������δ��׼���ڴ��໼�ߣ���ָ��δ���м����Ƽ���" };
-  if (ageMonths < 1) return { available: false as const, reason: "С��1����δ��׼���ڴ��໼�ߣ����޼����ο���" };
-  if (ageMonths >= 13 * 12) return { available: true as const, dose: 200, frequency: "ÿ��3��", note: "�̶�����" };
-  if (weightKg <= 0) return { available: false as const, reason: "��������Ч���غ���㡣" };
-  return { available: true as const, dose: rounded(weightKg * 6), frequency: "ÿ��3��", note: "6 mg/kg/�Σ�����δ�ṩ������������ȡ������" };
+    ? { available: true as const, loading: "首日每次300 mg，每日2次", maintenance: "此后每次300 mg，每日1次" }
+    : { available: false as const, reason: "13岁以下未批准用于此类患者，且指南未进行剂量推荐。" };
+  if (ageMonths < 1) return { available: false as const, reason: "小于1个月未批准用于此类患者，暂无剂量参考。" };
+  if (ageMonths >= 13 * 12) return { available: true as const, dose: 200, frequency: "每日3次", note: "固定剂量" };
+  if (weightKg <= 0) return { available: false as const, reason: "请输入有效体重后计算。" };
+  return { available: true as const, dose: rounded(weightKg * 6), frequency: "每日3次", note: "6 mg/kg/次；资料未提供单次最大剂量及取整规则" };
 }
 
 export function calculateCaspofungin(weightKg: number, heightCm: number) {
@@ -218,97 +223,97 @@ export function calculateCaspofungin(weightKg: number, heightCm: number) {
 
 export function calculateVoriconazole(ageMonths: number, weightKg: number) {
   if (!Number.isFinite(ageMonths) || ageMonths < 0) return null;
-  if (ageMonths < 24) return { available: false as const, reason: "2������δ��׼���ڴ��໼�ߣ����޼����ο���" };
+  if (ageMonths < 24) return { available: false as const, reason: "2岁以下未批准用于此类患者，暂无剂量参考。" };
   const pediatric = ageMonths < 12 * 12 || (ageMonths < 15 * 12 && weightKg < 50);
   if (pediatric) {
-    if (weightKg <= 0) return { available: false as const, reason: "��������Ч���غ���㡣" };
-    return { available: true as const, regimen: "pediatric" as const, dose: Math.min(rounded(weightKg * 9), 350), frequency: "ÿ��2��", note: "9 mg/kg/�Σ���󵥴μ���350 mg" };
+    if (weightKg <= 0) return { available: false as const, reason: "请输入有效体重后计算。" };
+    return { available: true as const, regimen: "pediatric" as const, dose: Math.min(rounded(weightKg * 9), 350), frequency: "每日2次", note: "9 mg/kg/次，最大单次剂量350 mg" };
   }
-  return { available: true as const, regimen: "adolescent" as const, loading: "����ÿ��400 mg��ÿ��2��", maintenance: "�˺�ÿ��200 mg��ÿ��2��" };
+  return { available: true as const, regimen: "adolescent" as const, loading: "首日每次400 mg，每日2次", maintenance: "此后每次200 mg，每日2次" };
 }
 
 export function calculateFluconazole(ageDays: number, weightKg: number) {
   if (!Number.isFinite(ageDays) || ageDays < 0) return null;
-  if (weightKg <= 0) return { available: false as const, reason: "��������Ч���غ���㡣" };
-  const range = (low: number, high: number) => `${rounded(weightKg * low)}�C${Math.min(rounded(weightKg * high), 400)} mg/��`;
-  if (ageDays <= 14) return { available: true as const, dose: range(3, 12), frequency: "ÿ72Сʱ1��", note: "3�C12 mg/kg/�Σ����ÿ72Сʱ12 mg/kg" };
-  if (ageDays <= 27) return { available: true as const, dose: range(3, 12), frequency: "ÿ48Сʱ1��", note: "3�C12 mg/kg/�Σ����ÿ48Сʱ12 mg/kg" };
-  if (ageDays < 12 * 365.25) return { available: true as const, dose: range(3, 12), frequency: "ÿ��1��", note: "3�C12 mg/kg/�Σ����400 mg" };
-  if (ageDays < 18 * 365.25) return { available: true as const, dose: range(8, 12), frequency: "ÿ��1��", note: "8�C12 mg/kg/�Σ����400 mg" };
-  return { available: false as const, reason: "����Ŀ���Ͻ��ṩ��17��ļ����ο���" };
+  if (weightKg <= 0) return { available: false as const, reason: "请输入有效体重后计算。" };
+  const range = (low: number, high: number) => `${rounded(weightKg * low)}–${Math.min(rounded(weightKg * high), 400)} mg/次`;
+  if (ageDays <= 14) return { available: true as const, dose: range(3, 12), frequency: "每72小时1次", note: "3–12 mg/kg/次；最大每72小时12 mg/kg" };
+  if (ageDays <= 27) return { available: true as const, dose: range(3, 12), frequency: "每48小时1次", note: "3–12 mg/kg/次；最大每48小时12 mg/kg" };
+  if (ageDays < 12 * 365.25) return { available: true as const, dose: range(3, 12), frequency: "每日1次", note: "3–12 mg/kg/次；最大400 mg" };
+  if (ageDays < 18 * 365.25) return { available: true as const, dose: range(8, 12), frequency: "每日1次", note: "8–12 mg/kg/次；最大400 mg" };
+  return { available: false as const, reason: "本项目资料仅提供至17岁的剂量参考。" };
 }
 
 export function calculateItraconazole(ageMonths: number, weightKg: number) {
-  if (!Number.isFinite(ageMonths) || ageMonths < 24) return { available: false as const, reason: "2������δ��׼���ڴ��໼�ߣ����޼����ο���" };
-  if (weightKg <= 0) return { available: false as const, reason: "��������Ч���غ���㡣" };
-  return { available: true as const, totalDaily: rounded(weightKg * 5), perDose: rounded(weightKg * 2.5), frequency: "ÿ��2��" };
+  if (!Number.isFinite(ageMonths) || ageMonths < 24) return { available: false as const, reason: "2岁以下未批准用于此类患者，暂无剂量参考。" };
+  if (weightKg <= 0) return { available: false as const, reason: "请输入有效体重后计算。" };
+  return { available: true as const, totalDaily: rounded(weightKg * 5), perDose: rounded(weightKg * 2.5), frequency: "每日2次" };
 }
 
 export function getStandardDoseLines(drug: DrugName, ageMonths: number, ageDays: number, weightKg: number, heightCm: number): string[] {
-  if (drug === "�׿��Ҿ�") {
+  if (drug === "米卡芬净") {
     const r = calculateMicafungin(weightKg);
-    return r ? [`ÿ��1�Σ�ÿ��${r.daily} mg��1 mg/kg�����50 mg��`, `��ÿ��2�Σ�ÿ��${r.twiceWeekly} mg��4 mg/kg��`] : ["��������Ч���غ���㡣"];
+    return r ? [`每日1次，每次${r.daily} mg（1 mg/kg，最大50 mg）`, `或每周2次，每次${r.twiceWeekly} mg（4 mg/kg）`] : ["请输入有效体重后计算。"];
   }
-  if (drug === "��ɳ����") {
+  if (drug === "泊沙康唑") {
     const tablet = calculatePosaconazole("tablet", ageMonths, weightKg);
     const suspension = calculatePosaconazole("suspension", ageMonths, weightKg);
-    const tabletLine = tablet && tablet.available ? `����Ƭ��${tablet.loading}��${tablet.maintenance}` : `����Ƭ��${tablet && "reason" in tablet ? tablet.reason : "���޼����ο�"}`;
-    const suspensionLine = suspension && suspension.available ? `�ڷ�����Һ��ÿ��${suspension.dose} mg��${suspension.frequency}��${suspension.note}��` : `�ڷ�����Һ��${suspension && "reason" in suspension ? suspension.reason : "���޼����ο�"}`;
+    const tabletLine = tablet && tablet.available ? `肠溶片：${tablet.loading}；${tablet.maintenance}` : `肠溶片：${tablet && "reason" in tablet ? tablet.reason : "暂无剂量参考"}`;
+    const suspensionLine = suspension && suspension.available ? `口服混悬液：每次${suspension.dose} mg，${suspension.frequency}（${suspension.note}）` : `口服混悬液：${suspension && "reason" in suspension ? suspension.reason : "暂无剂量参考"}`;
     return [tabletLine, suspensionLine];
   }
-  if (drug === "��������") {
+  if (drug === "伏立康唑") {
     const r = calculateVoriconazole(ageMonths, weightKg);
-    if (!r || !r.available) return [r?.reason ?? "���޼����ο���"];
-    return r.regimen === "pediatric" ? [`ÿ��${r.dose} mg��${r.frequency}��${r.note}��`] : [r.loading, r.maintenance];
+    if (!r || !r.available) return [r?.reason ?? "暂无剂量参考。"];
+    return r.regimen === "pediatric" ? [`每次${r.dose} mg，${r.frequency}（${r.note}）`] : [r.loading, r.maintenance];
   }
-  if (drug === "������") {
+  if (drug === "氟康唑") {
     const r = calculateFluconazole(ageDays, weightKg);
-    return r && r.available ? [`${r.dose}��${r.frequency}��${r.note}��`] : [r?.reason ?? "���޼����ο���"];
+    return r && r.available ? [`${r.dose}，${r.frequency}（${r.note}）`] : [r?.reason ?? "暂无剂量参考。"];
   }
-  if (drug === "��������") {
+  if (drug === "伊曲康唑") {
     const r = calculateItraconazole(ageMonths, weightKg);
-    return r.available ? [`ÿ������${r.totalDaily} mg����2�θ�ҩ��ÿ��${r.perDose} mg��`] : [r.reason];
+    return r.available ? [`每日总量${r.totalDaily} mg，分2次给药（每次${r.perDose} mg）`] : [r.reason];
   }
-  if (drug === "��ɳ����") return ["ǰ48Сʱ�ڣ�ÿ8Сʱһƿ���൱��200 mg��ɳ���򣩣�����ҩ6�Ρ�", "��ĩ�θ��ɼ�����ҩ��12��24Сʱ��ʼ��ÿ��1�Σ�ÿ��һƿ���൱��200 mg��ɳ���򣩡�", "��δȷ��18������δ������ʹ�ñ�Ʒ�İ�ȫ�Լ���Ч�����ڳ�˵������ҩ��"];
-  if (drug === "֬��������ù��B") return ["ÿ��3�Σ�ÿ��1 mg/kg����ÿ��3�Σ�ÿ��3 mg/kg����ÿ��2�Σ�ÿ��2.5 mg/kg��"];
+  if (drug === "艾沙康唑") return ["前48小时内，每8小时一瓶（相当于200 mg艾沙康唑），共给药6次。", "从末次负荷剂量给药后12至24小时开始，每日1次，每次一瓶（相当于200 mg艾沙康唑）。", "尚未确定18岁以下未成年人使用本品的安全性及疗效，属于超说明书用药。"];
+  if (drug === "脂质体两性霉素B") return ["每周3次，每次1 mg/kg；或每周3次，每次3 mg/kg；或每周2次，每次2.5 mg/kg。"];
   const r = calculateCaspofungin(weightKg, heightCm);
-  return r ? [`���ո���${r.loading} mg��70 mg/m2�����70 mg��`, `ά��${r.maintenance} mg��ÿ��1�Σ�50 mg/m2�����70 mg��`] : ["��������Ч���غ����ߺ���㡣"];
+  return r ? [`首日负荷${r.loading} mg（70 mg/m²，最大70 mg）`, `维持${r.maintenance} mg，每日1次（50 mg/m²，最大70 mg）`] : ["请输入有效体重和身高后计算。"];
 }
 
 export function getDoseAdjustments(drug: DrugName, organ: OrganMedicationInputs, weightKg: number, heightCm: number): string[] {
   const result: string[] = [];
   const renalAffected = organ.renalStatus !== "" && organ.renalStatus !== "normal";
   const hepaticAffected = organ.hepaticStatus !== "" && organ.hepaticStatus !== "normal";
-  if (drug === "��ɳ����") {
-    if (renalAffected) result.push("�����ܲ�ȫ�Բ�ɳ����ҩ������ѧ����������Ӱ�죬�������������");
-    if (hepaticAffected) result.push("�ι��ܲ�ȫ�����ϲ�������м���������");
+  if (drug === "泊沙康唑") {
+    if (renalAffected) result.push("肾功能不全对泊沙康唑药代动力学不存在显著影响，无需调整剂量。");
+    if (hepaticAffected) result.push("肝功能不全：资料不建议进行剂量调整。");
   }
-  if (drug === "�׿��Ҿ�") {
-    if (renalAffected) result.push("�������𺦻��߲���Ҫ����������");
-    if (hepaticAffected) result.push("�ι����쳣���ܼ��أ�Ӧ���ڼ��ι��ܣ������쳣ʱ��ȡ�ʵ���������ֹͣ��ҩ��");
+  if (drug === "米卡芬净") {
+    if (renalAffected) result.push("肾功能损害患者不需要调整剂量。");
+    if (hepaticAffected) result.push("肝功能异常可能加重，应定期检查肝功能；出现异常时采取适当处理，如停止给药。");
   }
-  if (drug === "�����Ҿ�") {
-    if (renalAffected) result.push(organ.renalStatus === "dialysis" ? "�����Ҿ�����͸����ѪҺ͸������Ҫ���������" : "�������𺦻��߲���Ҫ����������");
-    if (hepaticAffected) result.push("Ŀǰû�иι��ܲ�ͬ�̶������ͯ���ߵ��ٴ���ҩ���顣");
+  if (drug === "卡泊芬净") {
+    if (renalAffected) result.push(organ.renalStatus === "dialysis" ? "卡泊芬净不可透析，血液透析后不需要补充剂量。" : "肾功能损害患者不需要调整剂量。");
+    if (hepaticAffected) result.push("目前没有肝功能不同程度受损儿童患者的临床用药经验。");
     if (organ.medications.includes("rifabutin") || organ.medications.includes("enzyme-inducer")) {
       const bsa = bodySurfaceArea(weightKg, heightCm);
-      result.push(Number.isFinite(bsa) ? `�ϲ���ҩø�յ���������Ϊÿ��${Math.min(rounded(bsa * 70), 70)} mg��70 mg/m2��ʵ���ռ���������70 mg����` : "�ϲ���ҩø�յ�����Ӧ����70 mg/m2ÿ��1�Σ�ʵ���ռ���������70 mg�������������غ���㡣");
+      result.push(Number.isFinite(bsa) ? `合并肝药酶诱导剂：调整为每日${Math.min(rounded(bsa * 70), 70)} mg（70 mg/m²，实际日剂量不超过70 mg）。` : "合并肝药酶诱导剂：应考虑70 mg/m²每日1次，实际日剂量不超过70 mg；输入身高体重后计算。");
     }
   }
-  if (drug === "��������") {
-    if (renalAffected) result.push("��������ʱ��ѡ�ڷ���ҩ����������ҩ�����ڱף��������м��Ѫ�弡�����쳣����ʱ���Ǹ�Ϊ�ڷ���");
-    if (organ.medications.includes("phenytoin")) result.push(weightKg >= 40 ? "�ϲ�����Ӣ�����Ͻ���ڷ�ά�ּ�������Ϊÿ��400 mg��ÿ��2�Ρ�" : "�ϲ�����Ӣ�����Ͻ���ڷ�ά�ּ�������Ϊÿ��200 mg��ÿ��2�Ρ�");
-    if (organ.medications.includes("rifabutin")) result.push(weightKg >= 40 ? "�ϲ�������͡��Ӧ���⣻�������ã����Ͻ���ڷ�ά�ּ�������Ϊÿ��350 mg��ÿ��2�Ρ�" : "�ϲ�������͡��Ӧ���⣻�������ã����Ͻ���ڷ�ά�ּ�������Ϊÿ��200 mg��ÿ��2�Ρ�");
+  if (drug === "伏立康唑") {
+    if (renalAffected) result.push("肾功能损害时宜选口服给药；若静脉给药利大于弊，必须密切监测血清肌酐，异常增高时考虑改为口服。");
+    if (organ.medications.includes("phenytoin")) result.push(weightKg >= 40 ? "合并苯妥英：资料建议口服维持剂量调整为每次400 mg，每日2次。" : "合并苯妥英：资料建议口服维持剂量调整为每次200 mg，每日2次。");
+    if (organ.medications.includes("rifabutin")) result.push(weightKg >= 40 ? "合并利福布汀：应避免；如必须合用，资料建议口服维持剂量调整为每次350 mg，每日2次。" : "合并利福布汀：应避免；如必须合用，资料建议口服维持剂量调整为每次200 mg，每日2次。");
   }
-  if (drug === "��ɳ����") {
-    if (organ.hepaticStatus === "child-ab") result.push("������жȸι����𺦣�Child-Pugh A/B��������Ҫ����������");
-    if (organ.hepaticStatus === "child-c") result.push("�ضȸι����𺦣�Child-Pugh C������δ�о�������Ǳ�ڻ�����ڷ��գ����򲻽���ʹ�á�");
-    if (organ.hepaticStatus === "abnormal") result.push("�ι����쳣�ּ����꣺���Ͻ���ȷChild-Pugh A/B���������Child-Pugh Cͨ��������ʹ�ã��벹��ּ���");
+  if (drug === "艾沙康唑") {
+    if (organ.hepaticStatus === "child-ab") result.push("轻度至中度肝功能损害（Child-Pugh A/B级）不需要调整剂量。");
+    if (organ.hepaticStatus === "child-c") result.push("重度肝功能损害（Child-Pugh C级）尚未研究；除非潜在获益大于风险，否则不建议使用。");
+    if (organ.hepaticStatus === "abnormal") result.push("肝功能异常分级不详：资料仅明确Child-Pugh A/B无需调整、Child-Pugh C通常不建议使用，请补充分级。");
   }
-  if (drug === "��������" && renalAffected) result.push("�����𺦻����������ޣ����ֻ��߱�¶�����ܽϵͣ�Ӧ����ʹ�ò����ǵ���������");
-  if (drug === "֬��������ù��B") {
-    if (renalAffected) result.push("�������𺦻�����������������ҩƵ�ʡ�");
-    if (hepaticAffected) result.push("����Ϊ�ι����𺦻����ṩ��ҩ��������ݡ�");
+  if (drug === "伊曲康唑" && renalAffected) result.push("肾脏损害患者资料有限，部分患者暴露量可能较低；应谨慎使用并考虑调整剂量。");
+  if (drug === "脂质体两性霉素B") {
+    if (renalAffected) result.push("肾功能损害患者无需调整剂量或给药频率。");
+    if (hepaticAffected) result.push("尚无为肝功能损害患者提供给药建议的数据。");
   }
   return result;
 }
