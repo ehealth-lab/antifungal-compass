@@ -10,6 +10,7 @@ import {
   calculateVoriconazole,
   deriveDiseaseRiskLabel,
   deriveRiskInputs,
+  evaluatePrevention,
   getDoseAdjustments,
   initialQuestionnaire,
   selectDrugCandidates,
@@ -24,8 +25,8 @@ test("micafungin calculates both confirmed schedules", () => {
 test("posaconazole delayed-release tablet uses the age-13 boundary", () => {
   assert.deepEqual(calculatePosaconazole("tablet", 13 * 12, 40), {
     available: true,
-    loading: "����ÿ��300 mg��ÿ��2��",
-    maintenance: "�˺�ÿ��300 mg��ÿ��1��",
+    loading: "首日每次300 mg，每日2次",
+    maintenance: "此后每次300 mg，每日1次",
   });
   assert.equal(calculatePosaconazole("tablet", 13 * 12 - 1, 40)?.available, false);
 });
@@ -34,8 +35,8 @@ test("posaconazole suspension calculates the pediatric weight-based dose", () =>
   assert.deepEqual(calculatePosaconazole("suspension", 12 * 12, 25), {
     available: true,
     dose: 150,
-    frequency: "ÿ��3��",
-    note: "6 mg/kg/�Σ�����δ�ṩ������������ȡ������",
+    frequency: "每日3次",
+    note: "6 mg/kg/次；资料未提供单次最大剂量及取整规则",
   });
   assert.equal(calculatePosaconazole("suspension", 0, 4)?.available, false);
 });
@@ -75,8 +76,8 @@ test("QTc prolongation adds isavuconazole without removing baseline candidates",
     azoleContraindicatedOrPoorAbsorption: false,
   });
 
-  assert.deepEqual(baseline.map((drug) => drug.name), ["��ɳ����"]);
-  assert.deepEqual(withQtc.map((drug) => drug.name), ["��ɳ����", "��ɳ����"]);
+  assert.deepEqual(baseline.map((drug) => drug.name), ["泊沙康唑"]);
+  assert.deepEqual(withQtc.map((drug) => drug.name), ["泊沙康唑", "艾沙康唑"]);
   assert.equal(withQtc[1]?.offLabel, true);
 });
 
@@ -91,8 +92,8 @@ test("long-term neutropenia can also add off-label isavuconazole", () => {
     qtcProlonged: false,
     azoleContraindicatedOrPoorAbsorption: false,
   });
-  const isavuconazole = candidates.find((drug) => drug.name === "��ɳ����");
-  assert.equal(isavuconazole?.rank, "�ɿ���");
+  const isavuconazole = candidates.find((drug) => drug.name === "艾沙康唑");
+  assert.equal(isavuconazole?.rank, "可考虑");
   assert.equal(isavuconazole?.offLabel, true);
 });
 
@@ -107,7 +108,7 @@ test("isavuconazole is not labeled off-label at age 18 or above", () => {
     qtcProlonged: true,
     azoleContraindicatedOrPoorAbsorption: false,
   });
-  assert.equal(candidates.find((drug) => drug.name === "��ɳ����")?.offLabel, false);
+  assert.equal(candidates.find((drug) => drug.name === "艾沙康唑")?.offLabel, false);
 });
 
 test("detailed questionnaire maps ALL high-risk and treatment-stage rules", () => {
@@ -126,7 +127,7 @@ test("detailed questionnaire maps ALL high-risk and treatment-stage rules", () =
   assert.equal(mapped.leukemia, true);
   assert.equal(mapped.highRiskAll, true);
   assert.equal(mapped.consolidationOrIntensification, true);
-  assert.equal(deriveDiseaseRiskLabel(questionnaire, 8 * 12).label, "��Σ");
+  assert.equal(deriveDiseaseRiskLabel(questionnaire, 8 * 12).label, "高危");
 });
 
 test("infant age alone maps ALL to the confirmed high-risk branch", () => {
@@ -152,13 +153,38 @@ test("immune therapy subtypes map ATG and systemic therapy", () => {
   assert.equal(mapped.systemicImmuneTherapy, true);
 });
 
+test("systemic immune or lymphocyte-targeted therapy is a recommended prevention indication", () => {
+  const result = evaluatePrevention({
+    currentIfd: false,
+    imagingOrMarkerPositive: false,
+    previousIfd: false,
+    hsct: false,
+    preEngraftment: false,
+    alloHsctWithGvhdOrTherapy: false,
+    systemicImmuneTherapy: true,
+    atg: false,
+    leukemia: false,
+    aml: false,
+    amlHighRisk: false,
+    highRiskAll: false,
+    consolidationOrIntensification: false,
+    inductionRefractoryRelapse: false,
+    hodgkinLymphoma: false,
+    generalRiskFactor: false,
+  });
+
+  assert.equal(result.level, "recommended");
+  assert.equal(result.riskBand, "高危");
+  assert.equal(result.title, "推荐进行抗真菌预防");
+});
+
 test("voriconazole calculates pediatric dose and applies age approval boundary", () => {
   assert.deepEqual(calculateVoriconazole(8 * 12, 25), {
     available: true,
     regimen: "pediatric",
     dose: 225,
-    frequency: "ÿ��2��",
-    note: "9 mg/kg/�Σ���󵥴μ���350 mg",
+    frequency: "每日2次",
+    note: "9 mg/kg/次，最大单次剂量350 mg",
   });
   assert.equal(calculateVoriconazole(23, 12)?.available, false);
   assert.equal(calculateVoriconazole(14 * 12, 50)?.regimen, "adolescent");
@@ -167,11 +193,11 @@ test("voriconazole calculates pediatric dose and applies age approval boundary",
 test("fluconazole uses neonatal day boundaries", () => {
   assert.deepEqual(calculateFluconazole(14, 3), {
     available: true,
-    dose: "9�C36 mg/��",
-    frequency: "ÿ72Сʱ1��",
-    note: "3�C12 mg/kg/�Σ����ÿ72Сʱ12 mg/kg",
+    dose: "9–36 mg/次",
+    frequency: "每72小时1次",
+    note: "3–12 mg/kg/次；最大每72小时12 mg/kg",
   });
-  assert.equal(calculateFluconazole(15, 3)?.frequency, "ÿ48Сʱ1��");
+  assert.equal(calculateFluconazole(15, 3)?.frequency, "每48小时1次");
   assert.equal(ageToDays(1, "months") > 27, true);
 });
 
@@ -180,20 +206,20 @@ test("itraconazole calculates total and divided doses from age two", () => {
     available: true,
     totalDaily: 100,
     perDose: 50,
-    frequency: "ÿ��2��",
+    frequency: "每日2次",
   });
   assert.equal(calculateItraconazole(23, 20).available, false);
 });
 
 test("posaconazole organ adjustments preserve standard dose and add source text", () => {
-  const adjustments = getDoseAdjustments("��ɳ����", {
+  const adjustments = getDoseAdjustments("泊沙康唑", {
     renalStatus: "impaired",
     hepaticStatus: "child-ab",
     medications: ["tacrolimus"],
   }, 25, 125);
   assert.deepEqual(adjustments, [
-    "�����ܲ�ȫ�Բ�ɳ����ҩ������ѧ����������Ӱ�죬�������������",
-    "�ι��ܲ�ȫ�����ϲ�������м���������",
+    "肾功能不全对泊沙康唑药代动力学不存在显著影响，无需调整剂量。",
+    "肝功能不全：资料不建议进行剂量调整。",
   ]);
 });
 
